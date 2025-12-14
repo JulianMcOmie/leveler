@@ -26,7 +26,7 @@ The user selected "${message}" and wants to understand it.
 
 Requirements:
 - 10 words maximum
-- One sentence response - no semi colons, no new lines. Do not separate two sentences with a comma
+- One sentence response - no semi colons, no new lines. Do not separate two sentences with a comma.
 - Explain what "${message}" means in that specific sentence
 - USE technical jargon and precise terminology - give the user more terms to explore
 - Keep it grounded in the practical context, not abstract${forbiddenTerms}${topicAnchor}`;
