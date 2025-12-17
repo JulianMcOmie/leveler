@@ -33,7 +33,7 @@ Requirements:
     } else {
       prompt = `Explain in 10 words or fewer: ${message}
 Use jargon when it is appropriate and precise terminology.
-No LaTeX, no math symbols.
+No LaTeX, no math symbols. Use simple language when appropriate.
 MAXIMUM 10 WORDS.`;
     }
     
