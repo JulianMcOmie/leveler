@@ -32,7 +32,7 @@ Requirements:
 - Keep it grounded in the practical context, not abstract${forbiddenTerms}${topicAnchor}`;
     } else {
       prompt = `Explain in 10 words or fewer: ${message}
-Use jargon when it is appropriate and precise terminology.
+Use jargon when it is appropriate and precision.
 No LaTeX, no math symbols. Use simple language when appropriate.
 MAXIMUM 10 WORDS.`;
     }
