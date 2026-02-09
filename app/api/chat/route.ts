@@ -1,8 +1,50 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
+// Simple in-memory rate limiting (100 requests per IP per day)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 100;
+const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+// CORS headers for Chrome extension
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(request: Request) {
   try {
+    // Rate limiting check
+    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please try again later.' },
+        { status: 429, headers: corsHeaders }
+      );
+    }
+
     const { message, originalTopic, immediateContext, depth = 0, usedTerms = [] } = await request.json();
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -40,12 +82,12 @@ MAXIMUM 10 WORDS.`;
     const response = await result.response;
     const text = response.text();
 
-    return NextResponse.json({ response: text });
+    return NextResponse.json({ response: text }, { headers: corsHeaders });
   } catch (error) {
     console.error('Error calling Gemini:', error);
     return NextResponse.json(
       { error: 'Failed to get response from Gemini' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
