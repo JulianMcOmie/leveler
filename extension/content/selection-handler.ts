@@ -9,6 +9,23 @@ export interface SelectionData {
 /**
  * Get the current text selection from the page
  */
+/**
+ * Expand selection to word boundaries
+ */
+function expandToWordBoundaries(text: string, startOffset: number, endOffset: number): { start: number; end: number } {
+  // Expand backwards to word start
+  while (startOffset > 0 && /\w/.test(text[startOffset - 1])) {
+    startOffset--;
+  }
+
+  // Expand forwards to word end
+  while (endOffset < text.length && /\w/.test(text[endOffset])) {
+    endOffset++;
+  }
+
+  return { start: startOffset, end: endOffset };
+}
+
 export function getSelection(): SelectionData | null {
   const selection = window.getSelection();
 
@@ -17,14 +34,39 @@ export function getSelection(): SelectionData | null {
   }
 
   const range = selection.getRangeAt(0);
-  const selectedText = selection.toString().trim();
+  let selectedText = selection.toString().trim();
 
   // Ignore selections that are too short or too long
-  if (selectedText.length < 2 || selectedText.length > 100) {
+  if (selectedText.length < 1 || selectedText.length > 100) {
     return null;
   }
 
-  // Get the full text from the parent element for context extraction
+  // Try to expand to word boundaries using the range
+  try {
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+
+    // Only expand if selection is within a single text node
+    if (startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE) {
+      const textContent = startContainer.textContent || '';
+      let startOffset = range.startOffset;
+      let endOffset = range.endOffset;
+
+      // Expand to word boundaries
+      const expanded = expandToWordBoundaries(textContent, startOffset, endOffset);
+      selectedText = textContent.substring(expanded.start, expanded.end);
+    }
+  } catch (e) {
+    // If expansion fails, use original selection
+    console.log('Could not expand selection:', e);
+  }
+
+  // Ignore if still too short after expansion
+  if (selectedText.length < 2) {
+    return null;
+  }
+
+  // Get the full text from the parent element for context
   const parentElement = range.commonAncestorContainer.parentElement;
   if (!parentElement) {
     return null;
