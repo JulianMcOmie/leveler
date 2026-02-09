@@ -26,8 +26,9 @@ async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect
 
     // Create new popup manager
     popupManager = new PopupManager();
-    const hasHistory = explorationHistory.length > 0;
-    popupManager.show(popupRect, 'Loading...', true, selectedText, hasHistory); // Show term and back button immediately
+    // For recursive selections, always show back button (we're at depth >= 1)
+    const showBack = true;
+    popupManager.show(popupRect, 'Loading...', true, selectedText, showBack); // Show term and back button immediately
 
     // Fetch definition from API using only the term names for usedTerms
     const usedTerms = explorationHistory.map(item => item.term);
@@ -41,12 +42,13 @@ async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect
       popupManager.showError(response.error);
     } else {
       const currentPopup = popupManager;
-      const hasHistory = explorationHistory.length > 0;
+      // For recursive selections, always show back button
+      const showBack = true;
 
       popupManager.showDefinition(
         response.definition,
         selectedText, // Current term
-        hasHistory, // Show back button if there's history
+        showBack, // Show back button (we're at depth >= 1)
         () => {
           // Callback when popup is closed
           explorationHistory.length = 0;
@@ -156,10 +158,11 @@ async function handleTextSelection(): Promise<void> {
     popupManager.show(selectionRect, 'Loading...', false, selectionData.selectedText, false); // Show term immediately, no back button
 
     // Fetch definition from API
+    const usedTerms = explorationHistory.map(item => item.term);
     const response = await fetchDefinition({
       selectedText: selectionData.selectedText,
       context: selectionData.context,
-      history: explorationHistory,
+      history: usedTerms,
     });
 
     if (response.error) {

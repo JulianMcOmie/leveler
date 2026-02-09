@@ -138,12 +138,13 @@ export class PopupManager {
       }
 
       .back-button {
-        background: #f3f4f6;
+        background: #3b82f6;
         border: none;
-        padding: 4px 8px;
+        padding: 6px 12px;
         border-radius: 4px;
-        font-size: 12px;
-        color: #374151;
+        font-size: 13px;
+        color: white;
+        font-weight: 500;
         cursor: pointer;
         transition: all 0.15s ease;
         display: flex;
@@ -152,8 +153,7 @@ export class PopupManager {
       }
 
       .back-button:hover {
-        background: #e5e7eb;
-        color: #202123;
+        background: #2563eb;
       }
 
       .term-title {
@@ -291,7 +291,10 @@ export class PopupManager {
 
     // Show/hide back button
     if (showBack !== undefined) {
+      console.log('Setting back button display:', showBack ? 'flex' : 'none', 'showBack value:', showBack);
       this.backButton.style.display = showBack ? 'flex' : 'none';
+    } else {
+      console.log('showBack is undefined, not changing display');
     }
 
     // Set initial message
