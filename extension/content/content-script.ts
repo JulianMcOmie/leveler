@@ -9,6 +9,66 @@ let isProcessing = false;
 const explorationHistory: HistoryItem[] = [];
 
 /**
+ * Handle back button click - navigate to previous item in history
+ */
+function handleBackNavigation(): void {
+  console.log('handleBackNavigation called, history length:', explorationHistory.length);
+  console.log('History contents:', explorationHistory.map(h => h.term));
+
+  if (explorationHistory.length === 0) {
+    console.log('No history to go back to');
+    return;
+  }
+
+  // Pop the previous item from history BEFORE closing (closing triggers onClose which clears history!)
+  const previousItem = explorationHistory.pop()!;
+  console.log('Popped from history:', previousItem.term, 'Remaining history:', explorationHistory.length);
+
+  // Get current popup position before closing
+  const rect = popupManager ? popupManager.getRect() : { top: 100, left: 100, width: 0, height: 0 } as DOMRect;
+
+  // Close current popup WITHOUT triggering onClose (which would clear history)
+  // We're navigating, not actually closing the extension
+  if (popupManager) {
+    // Remove the container without calling the onClose callback
+    const container = document.getElementById('leveler-popup');
+    if (container) {
+      container.remove();
+    }
+  }
+
+  // Create new popup with previous definition
+  const newPopup = new PopupManager();
+  const stillHasHistory = explorationHistory.length > 0;
+
+  newPopup.show(rect, previousItem.definition, true, previousItem.term, stillHasHistory);
+  newPopup.showDefinition(
+    previousItem.definition,
+    previousItem.term,
+    stillHasHistory,
+    () => {
+      // On close, clear history
+      explorationHistory.length = 0;
+    },
+    (nextSelectedText: string) => {
+      // On word selection, go deeper
+      explorationHistory.push({
+        term: previousItem.term,
+        definition: previousItem.definition,
+        context: previousItem.context,
+      });
+      handleRecursiveSelection(nextSelectedText, newPopup.getRect());
+    },
+    () => {
+      // On back button, recurse
+      handleBackNavigation();
+    }
+  );
+
+  popupManager = newPopup;
+}
+
+/**
  * Handle recursive selection within a popup
  */
 async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect): Promise<void> {
@@ -19,9 +79,12 @@ async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect
   isProcessing = true;
 
   try {
-    // Close existing popup
+    // Close existing popup WITHOUT triggering onClose (which would clear history)
     if (popupManager) {
-      popupManager.close();
+      const container = document.getElementById('leveler-popup');
+      if (container) {
+        container.remove();
+      }
     }
 
     // Create new popup manager
@@ -50,7 +113,8 @@ async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect
         selectedText, // Current term
         showBack, // Show back button (we're at depth >= 1)
         () => {
-          // Callback when popup is closed
+          // Callback when popup is closed (X button or click outside)
+          console.log('onClose in handleRecursiveSelection - clearing history');
           explorationHistory.length = 0;
         },
         (nextSelectedText: string) => {
@@ -65,53 +129,8 @@ async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect
           handleRecursiveSelection(nextSelectedText, currentPopup.getRect());
         },
         () => {
-          // Back button callback
-          if (explorationHistory.length > 0) {
-            const previousItem = explorationHistory.pop()!;
-
-            // Close current popup
-            currentPopup.close();
-
-            // Create new popup with previous definition
-            const newPopup = new PopupManager();
-            const stillHasHistory = explorationHistory.length > 0;
-            newPopup.show(currentPopup.getRect(), previousItem.definition, true, previousItem.term, stillHasHistory);
-
-            newPopup.showDefinition(
-              previousItem.definition,
-              previousItem.term,
-              stillHasHistory,
-              () => {
-                explorationHistory.length = 0;
-              },
-              (nextSelectedText: string) => {
-                explorationHistory.push({
-                  term: previousItem.term,
-                  definition: previousItem.definition,
-                  context: previousItem.context,
-                });
-                handleRecursiveSelection(nextSelectedText, newPopup.getRect());
-              },
-              () => {
-                // Recursive back button for the restored popup
-                if (explorationHistory.length > 0) {
-                  const prev = explorationHistory.pop()!;
-                  newPopup.close();
-                  const restoredPopup = new PopupManager();
-                  const hasMoreHistory = explorationHistory.length > 0;
-                  restoredPopup.show(newPopup.getRect(), prev.definition, true, prev.term, hasMoreHistory);
-                  restoredPopup.showDefinition(
-                    prev.definition,
-                    prev.term,
-                    hasMoreHistory
-                  );
-                  popupManager = restoredPopup;
-                }
-              }
-            );
-
-            popupManager = newPopup;
-          }
+          // Back button callback - go back one level
+          handleBackNavigation();
         }
       );
     }
@@ -179,14 +198,15 @@ async function handleTextSelection(): Promise<void> {
           explorationHistory.length = 0;
         },
         (selectedText: string) => {
-          // Add current exploration to history before going deeper
+          // Callback when word is selected within popup for recursive exploration
+          // Add current item to history so we can go back to it
           explorationHistory.push({
             term: selectionData.selectedText,
             definition: response.definition,
             context: selectionData.context,
           });
+          console.log('Added to history from initial selection:', selectionData.selectedText, 'History length:', explorationHistory.length);
 
-          // Callback when word is selected within popup for recursive exploration
           handleRecursiveSelection(selectedText, currentPopup.getRect());
         }
       );
