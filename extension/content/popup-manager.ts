@@ -466,6 +466,12 @@ export class PopupManager {
   }
 
   close(): void {
+    // Clear any text selection on the page to prevent re-triggering
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+    }
+
     if (this.onCloseCallback) {
       this.onCloseCallback();
     }
