@@ -25,7 +25,7 @@ async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect
 
     // Create new popup manager
     popupManager = new PopupManager();
-    popupManager.show(popupRect, 'Loading...');
+    popupManager.show(popupRect, 'Loading...', true); // true = isRecursive
 
     // Fetch definition from API using the full exploration history
     const response = await fetchDefinition({
