@@ -1,44 +1,185 @@
 # Leveler
 
-A simple Next.js TypeScript app with a centered text input that displays the typed text.
+A tool for understanding technical terms through recursive exploration. Available as both a web app and Chrome extension.
+
+## Projects
+
+### 1. Web App (`/app`)
+Interactive web interface for exploring technical concepts recursively. Users type a term, get a concise 10-word definition, then click words within the definition to explore deeper.
+
+**Live:** https://leveler.dev
+
+### 2. Chrome Extension (`/extension`)
+Browser extension that provides instant, context-aware definitions for any text you highlight on any webpage. Supports recursive exploration by selecting words within the popup.
+
+**Status:** MVP complete, in testing
 
 ## Features
 
-- Clean, centered text input box
-- Type text and press Enter to display it
-- Click on the displayed text to start over
-- Beautiful gradient background with smooth animations
-- Fully responsive design
-- Built with Next.js 15 and Turbopack
+**Web App:**
+- Clean, centered input for exploring terms
+- Recursive word-by-word exploration
+- Context-aware definitions powered by Gemini 2.5-Flash
+- Beautiful gradient UI with smooth animations
 
-## Setup
+**Chrome Extension:**
+- Highlight any term on any webpage to see definition
+- Floating popup with context-aware explanations
+- Recursive exploration within popup
+- Shadow DOM for style isolation
+- Works on legal docs, technical docs, medical content, etc.
 
-1. Install dependencies:
+## Quick Start
+
+### Web App Development
+
 ```bash
+# Install dependencies
 npm install
-```
 
-2. Start the development server:
-```bash
+# Start dev server
 npm run dev
+
+# Open http://localhost:3000
 ```
 
-3. Open your browser and navigate to:
+### Chrome Extension Development
+
+```bash
+# Navigate to extension folder
+cd extension
+
+# Install dependencies
+npm install
+
+# Build extension
+npm run build
+
+# Load extension in Chrome
+# 1. Open chrome://extensions/
+# 2. Enable "Developer mode"
+# 3. Click "Load unpacked"
+# 4. Select extension/dist/ folder
 ```
-http://localhost:3000
+
+See [`extension/README.md`](extension/README.md) for detailed extension documentation.
+
+## API
+
+Both projects share the same API endpoint:
+
+**Endpoint:** `POST /api/chat`
+
+**Request:**
+```json
+{
+  "message": "term to define",
+  "immediateContext": "The sentence containing the term",
+  "depth": 0,
+  "usedTerms": []
+}
 ```
 
-## Usage
+**Response:**
+```json
+{
+  "response": "Concise 10-word definition"
+}
+```
 
-1. Type something in the text box
-2. Press Enter
-3. The text box disappears and your text is displayed in the center
-4. Click on the displayed text to start over
+**CORS:** Enabled for Chrome extension support
+**Rate Limiting:** 100 requests per IP per 24 hours
 
-## Scripts
+## Tech Stack
 
-- `npm run dev` - Start the development server with Turbopack
-- `npm run build` - Build for production
-- `npm start` - Start the production server
-- `npm run lint` - Run ESLint
-# leveler
+- **Framework:** Next.js 15 with App Router
+- **Language:** TypeScript
+- **AI:** Google Gemini 2.5-Flash API
+- **Styling:** CSS Modules
+- **Extension:** Chrome Manifest V3, esbuild bundler
+- **Deployment:** Vercel
+
+## Project Structure
+
+```
+leveler/
+├── app/                    # Next.js web app
+│   ├── api/chat/          # Shared API endpoint
+│   ├── page.tsx           # Main web interface
+│   └── page.module.css    # Styles
+├── extension/             # Chrome extension
+│   ├── content/           # Content scripts
+│   ├── shared/            # Shared utilities
+│   ├── build.js           # Build script
+│   └── README.md          # Extension docs
+├── .gitignore
+└── README.md              # This file
+```
+
+## Development Workflow
+
+### Making API Changes
+
+When updating the API, both projects are affected:
+
+```bash
+# 1. Update app/api/chat/route.ts
+# 2. Test with web app (npm run dev)
+# 3. Test with extension (load in Chrome)
+# 4. Commit and push (triggers Vercel deployment)
+git add app/api/chat/route.ts
+git commit -m "Update API"
+git push
+```
+
+### Making Extension Changes
+
+```bash
+cd extension
+# Edit TypeScript files
+npm run build
+# Reload extension in chrome://extensions/
+```
+
+### Making Web App Changes
+
+```bash
+# Edit files in app/
+npm run dev
+# See changes at localhost:3000
+```
+
+## Environment Variables
+
+Create `.env.local` in the root directory:
+
+```bash
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+## Deployment
+
+**Web App:** Automatically deployed to Vercel on push to `main`
+
+**Extension:**
+- MVP: Manually distributed (load unpacked)
+- Future: Chrome Web Store submission
+
+## Testing
+
+**Web App:**
+```bash
+npm run build
+npm start
+```
+
+**Extension:**
+See [`extension/INSTALLATION.md`](extension/INSTALLATION.md) for comprehensive testing checklist.
+
+## Contributing
+
+This is currently a personal project in MVP/validation phase. Feedback welcome!
+
+## License
+
+MIT

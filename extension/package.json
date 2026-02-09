@@ -1,0 +1,14 @@
+{
+  "name": "leveler-extension",
+  "version": "0.1.0",
+  "description": "Chrome extension for context-aware technical term definitions",
+  "scripts": {
+    "build": "node build.js",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.262",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.3.3"
+  }
+}

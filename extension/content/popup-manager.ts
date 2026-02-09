@@ -1,0 +1,381 @@
+import { parseTokens } from '../shared/utils';
+import { Token } from '../shared/types';
+
+export class PopupManager {
+  private container: HTMLDivElement;
+  private shadowRoot: ShadowRoot;
+  private popupContent: HTMLDivElement;
+  private closeButton: HTMLButtonElement;
+  private onCloseCallback?: () => void;
+  private onWordSelectionCallback?: (selectedText: string) => void;
+
+  // Selection state for recursive exploration
+  private isSelecting = false;
+  private selectionStart = -1;
+  private selectedIndices = new Set<number>();
+  private tokens: Token[] = [];
+
+  constructor() {
+    // Create container element
+    this.container = document.createElement('div');
+    this.container.id = 'leveler-popup';
+    this.container.style.position = 'fixed';
+    this.container.style.zIndex = '2147483647'; // Maximum z-index
+    this.container.style.pointerEvents = 'none'; // Allow clicks through container
+
+    // Attach Shadow DOM for style isolation
+    this.shadowRoot = this.container.attachShadow({ mode: 'open' });
+
+    // Create popup content
+    this.popupContent = document.createElement('div');
+    this.popupContent.className = 'popup-content';
+    this.popupContent.style.pointerEvents = 'auto'; // But enable clicks on popup itself
+
+    // Create close button
+    this.closeButton = document.createElement('button');
+    this.closeButton.className = 'close-button';
+    this.closeButton.innerHTML = '×';
+    this.closeButton.onclick = () => this.close();
+
+    // Add styles
+    this.shadowRoot.appendChild(this.createStyles());
+    this.shadowRoot.appendChild(this.popupContent);
+    this.popupContent.appendChild(this.closeButton);
+
+    // Add to document
+    document.body.appendChild(this.container);
+  }
+
+  private createStyles(): HTMLStyleElement {
+    const style = document.createElement('style');
+    style.textContent = `
+      .popup-content {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        min-width: 200px;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #202123;
+        animation: fadeIn 0.2s ease;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .close-button {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: none;
+        border: none;
+        font-size: 24px;
+        line-height: 1;
+        color: #6b7280;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.15s ease;
+      }
+
+      .close-button:hover {
+        background: #f3f4f6;
+        color: #202123;
+      }
+
+      .definition-text {
+        padding-right: 20px;
+        user-select: none;
+      }
+
+      .loading-text {
+        color: #6b7280;
+        font-style: italic;
+      }
+
+      .error-text {
+        color: #ef4444;
+      }
+
+      /* Selectable word styles (ported from Leveler) */
+      .selectable-word {
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+        display: inline;
+        position: relative;
+        z-index: 1;
+      }
+
+      .selectable-word::before {
+        content: '';
+        position: absolute;
+        top: -2px;
+        bottom: -2px;
+        left: -0.1em;
+        right: 0.15em;
+        border-radius: 3px;
+        z-index: -1;
+        transition: background 0.15s ease;
+        pointer-events: none;
+      }
+
+      .selectable-word:hover::before {
+        background: #f3f4f6;
+      }
+
+      /* Single word selected */
+      .word-selected-single::before {
+        background: #10a37f !important;
+        border-radius: 3px;
+      }
+
+      /* First word in selection */
+      .word-selected-first::before {
+        background: #10a37f !important;
+        border-radius: 3px 0 0 3px;
+        right: -0.25em;
+      }
+
+      /* Middle words in selection */
+      .word-selected-middle::before {
+        background: #10a37f !important;
+        border-radius: 0;
+        left: -0.25em;
+        right: -0.25em;
+      }
+
+      /* Last word in selection */
+      .word-selected-last::before {
+        background: #10a37f !important;
+        border-radius: 0 3px 3px 0;
+        left: -0.25em;
+      }
+
+      .word-selected-single,
+      .word-selected-first,
+      .word-selected-middle,
+      .word-selected-last {
+        color: white !important;
+        position: relative;
+        z-index: 1;
+      }
+
+      .breadcrumb {
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+    `;
+    return style;
+  }
+
+  show(rect: DOMRect, message: string): void {
+    // Calculate popup position
+    const POPUP_MARGIN = 10;
+    const viewportHeight = window.innerHeight;
+
+    // Try to position below selection first
+    let top = window.scrollY + rect.bottom + POPUP_MARGIN;
+    let placement: 'below' | 'above' = 'below';
+
+    // If not enough space below, position above
+    if (rect.bottom + 200 > viewportHeight) {
+      top = window.scrollY + rect.top - POPUP_MARGIN;
+      placement = 'above';
+      this.popupContent.style.transform = 'translateY(-100%)';
+    } else {
+      this.popupContent.style.transform = 'none';
+    }
+
+    // Center horizontally relative to selection
+    const left = window.scrollX + rect.left + (rect.width / 2);
+
+    this.container.style.top = `${top}px`;
+    this.container.style.left = `${left}px`;
+    this.container.style.transform = 'translateX(-50%)';
+
+    // Set initial message
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'definition-text loading-text';
+    messageDiv.textContent = message;
+    this.popupContent.appendChild(messageDiv);
+  }
+
+  showDefinition(
+    definition: string,
+    onClose?: () => void,
+    onWordSelection?: (selectedText: string) => void
+  ): void {
+    this.onCloseCallback = onClose;
+    this.onWordSelectionCallback = onWordSelection;
+
+    // Clear previous content (except close button)
+    while (this.popupContent.children.length > 1) {
+      this.popupContent.removeChild(this.popupContent.lastChild!);
+    }
+
+    // Parse definition into selectable words
+    this.tokens = parseTokens(definition);
+
+    // Create definition container
+    const definitionDiv = document.createElement('div');
+    definitionDiv.className = 'definition-text';
+
+    // Render selectable words
+    this.renderSelectableWords(definitionDiv);
+
+    this.popupContent.appendChild(definitionDiv);
+  }
+
+  showError(error: string): void {
+    // Clear previous content (except close button)
+    while (this.popupContent.children.length > 1) {
+      this.popupContent.removeChild(this.popupContent.lastChild!);
+    }
+
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'definition-text error-text';
+    errorDiv.textContent = error;
+    this.popupContent.appendChild(errorDiv);
+  }
+
+  private renderSelectableWords(container: HTMLElement): void {
+    this.tokens.forEach((token, index) => {
+      const span = document.createElement('span');
+      span.className = 'selectable-word';
+      span.textContent = token.word;
+      span.dataset.index = index.toString();
+
+      // Mouse event handlers for selection
+      span.addEventListener('mousedown', () => this.handleWordMouseDown(index));
+      span.addEventListener('mouseenter', () => this.handleWordMouseEnter(index));
+      span.addEventListener('mouseup', () => this.handleWordMouseUp());
+
+      container.appendChild(span);
+
+      // Add delimiter (space or dash)
+      if (token.delimiter) {
+        container.appendChild(document.createTextNode(token.delimiter));
+      }
+    });
+
+    // Handle mouse leave to cancel selection
+    container.addEventListener('mouseleave', () => this.handleMouseLeave());
+  }
+
+  private handleWordMouseDown(index: number): void {
+    this.isSelecting = true;
+    this.selectionStart = index;
+    this.selectedIndices = new Set([index]);
+    this.updateSelectionUI();
+  }
+
+  private handleWordMouseEnter(index: number): void {
+    if (!this.isSelecting) return;
+
+    const start = Math.min(this.selectionStart, index);
+    const end = Math.max(this.selectionStart, index);
+
+    this.selectedIndices = new Set();
+    for (let i = start; i <= end; i++) {
+      this.selectedIndices.add(i);
+    }
+
+    this.updateSelectionUI();
+  }
+
+  private handleWordMouseUp(): void {
+    if (!this.isSelecting || this.selectedIndices.size === 0) {
+      this.isSelecting = false;
+      return;
+    }
+
+    this.isSelecting = false;
+
+    // Get selected text
+    const selectedWords = Array.from(this.selectedIndices)
+      .sort((a, b) => a - b)
+      .map(i => this.tokens[i].word)
+      .join(' ');
+
+    // Clear selection UI
+    this.selectedIndices.clear();
+    this.updateSelectionUI();
+
+    // Trigger recursive definition lookup
+    if (this.onWordSelectionCallback) {
+      this.onWordSelectionCallback(selectedWords);
+    }
+  }
+
+  private handleMouseLeave(): void {
+    this.isSelecting = false;
+    this.selectedIndices.clear();
+    this.updateSelectionUI();
+  }
+
+  private updateSelectionUI(): void {
+    const words = this.shadowRoot.querySelectorAll('.selectable-word');
+    words.forEach((word, index) => {
+      const el = word as HTMLElement;
+
+      // Remove all selection classes
+      el.classList.remove(
+        'word-selected-single',
+        'word-selected-first',
+        'word-selected-middle',
+        'word-selected-last'
+      );
+
+      // Add appropriate class if selected
+      if (this.selectedIndices.has(index)) {
+        const size = this.selectedIndices.size;
+        if (size === 1) {
+          el.classList.add('word-selected-single');
+        } else {
+          const sortedIndices = Array.from(this.selectedIndices).sort((a, b) => a - b);
+          const position = sortedIndices.indexOf(index);
+
+          if (position === 0) {
+            el.classList.add('word-selected-first');
+          } else if (position === size - 1) {
+            el.classList.add('word-selected-last');
+          } else {
+            el.classList.add('word-selected-middle');
+          }
+        }
+      }
+    });
+  }
+
+  getRect(): DOMRect {
+    return this.popupContent.getBoundingClientRect();
+  }
+
+  close(): void {
+    if (this.onCloseCallback) {
+      this.onCloseCallback();
+    }
+    this.container.remove();
+  }
+}
