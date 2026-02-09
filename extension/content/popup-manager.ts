@@ -6,8 +6,12 @@ export class PopupManager {
   private shadowRoot: ShadowRoot;
   private popupContent: HTMLDivElement;
   private closeButton: HTMLButtonElement;
+  private headerSection: HTMLDivElement;
+  private backButton: HTMLButtonElement;
+  private termTitle: HTMLDivElement;
   private onCloseCallback?: () => void;
   private onWordSelectionCallback?: (selectedText: string) => void;
+  private onBackCallback?: () => void;
 
   // Selection state for recursive exploration
   private isSelecting = false;
@@ -31,16 +35,40 @@ export class PopupManager {
     this.popupContent.className = 'popup-content';
     this.popupContent.style.pointerEvents = 'auto'; // But enable clicks on popup itself
 
+    // Create header section
+    this.headerSection = document.createElement('div');
+    this.headerSection.className = 'popup-header';
+
+    // Create back button
+    this.backButton = document.createElement('button');
+    this.backButton.className = 'back-button';
+    this.backButton.innerHTML = '← Back';
+    this.backButton.onclick = () => {
+      if (this.onBackCallback) {
+        this.onBackCallback();
+      }
+    };
+    this.backButton.style.display = 'none'; // Hidden by default
+
+    // Create term title
+    this.termTitle = document.createElement('div');
+    this.termTitle.className = 'term-title';
+
     // Create close button
     this.closeButton = document.createElement('button');
     this.closeButton.className = 'close-button';
     this.closeButton.innerHTML = '×';
     this.closeButton.onclick = () => this.close();
 
+    // Assemble header
+    this.headerSection.appendChild(this.backButton);
+    this.headerSection.appendChild(this.termTitle);
+
     // Add styles
     this.shadowRoot.appendChild(this.createStyles());
     this.shadowRoot.appendChild(this.popupContent);
     this.popupContent.appendChild(this.closeButton);
+    this.popupContent.appendChild(this.headerSection);
 
     // Add to document
     document.body.appendChild(this.container);
@@ -100,8 +128,42 @@ export class PopupManager {
         color: #202123;
       }
 
+      .popup-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .back-button {
+        background: #f3f4f6;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #374151;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .back-button:hover {
+        background: #e5e7eb;
+        color: #202123;
+      }
+
+      .term-title {
+        font-weight: 600;
+        color: #202123;
+        font-size: 14px;
+        flex: 1;
+      }
+
       .definition-text {
-        padding-right: 20px;
         user-select: none;
       }
 
@@ -189,7 +251,7 @@ export class PopupManager {
     return style;
   }
 
-  show(rect: DOMRect, message: string, isRecursive: boolean = false): void {
+  show(rect: DOMRect, message: string, isRecursive: boolean = false, term?: string, showBack?: boolean): void {
     // Calculate popup position
     const POPUP_MARGIN = 10;
     const viewportHeight = window.innerHeight;
@@ -222,6 +284,16 @@ export class PopupManager {
     this.container.style.left = `${left}px`;
     this.container.style.transform = 'translateX(-50%)';
 
+    // Set term title if provided
+    if (term) {
+      this.termTitle.textContent = term;
+    }
+
+    // Show/hide back button
+    if (showBack !== undefined) {
+      this.backButton.style.display = showBack ? 'flex' : 'none';
+    }
+
     // Set initial message
     const messageDiv = document.createElement('div');
     messageDiv.className = 'definition-text loading-text';
@@ -231,14 +303,24 @@ export class PopupManager {
 
   showDefinition(
     definition: string,
+    currentTerm: string,
+    showBackButton: boolean = false,
     onClose?: () => void,
-    onWordSelection?: (selectedText: string) => void
+    onWordSelection?: (selectedText: string) => void,
+    onBack?: () => void
   ): void {
     this.onCloseCallback = onClose;
     this.onWordSelectionCallback = onWordSelection;
+    this.onBackCallback = onBack;
 
-    // Clear previous content (except close button)
-    while (this.popupContent.children.length > 1) {
+    // Set term title
+    this.termTitle.textContent = currentTerm;
+
+    // Show/hide back button
+    this.backButton.style.display = showBackButton ? 'flex' : 'none';
+
+    // Clear previous content (except close button and header)
+    while (this.popupContent.children.length > 2) {
       this.popupContent.removeChild(this.popupContent.lastChild!);
     }
 

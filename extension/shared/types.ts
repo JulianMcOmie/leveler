@@ -43,9 +43,10 @@ export interface PopupPosition {
 }
 
 /**
- * Breadcrumb item for recursive exploration trail
+ * History item for recursive exploration
  */
-export interface Breadcrumb {
+export interface HistoryItem {
   term: string;
   definition: string;
+  context: string;
 }

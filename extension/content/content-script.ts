@@ -1,11 +1,12 @@
 import { getSelection, getSelectionRect } from './selection-handler';
 import { fetchDefinition } from '../shared/api-client';
 import { PopupManager } from './popup-manager';
+import { HistoryItem } from '../shared/types';
 
 // Global state
 let popupManager: PopupManager | null = null;
 let isProcessing = false;
-const explorationHistory: string[] = [];
+const explorationHistory: HistoryItem[] = [];
 
 /**
  * Handle recursive selection within a popup
@@ -25,33 +26,90 @@ async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect
 
     // Create new popup manager
     popupManager = new PopupManager();
-    popupManager.show(popupRect, 'Loading...', true); // true = isRecursive
+    const hasHistory = explorationHistory.length > 0;
+    popupManager.show(popupRect, 'Loading...', true, selectedText, hasHistory); // Show term and back button immediately
 
-    // Fetch definition from API using the full exploration history
+    // Fetch definition from API using only the term names for usedTerms
+    const usedTerms = explorationHistory.map(item => item.term);
     const response = await fetchDefinition({
       selectedText: selectedText,
       context: selectedText, // For recursive lookups, use the word itself as context
-      history: explorationHistory,
+      history: usedTerms,
     });
 
     if (response.error) {
       popupManager.showError(response.error);
     } else {
-      // Add current term to history
-      if (!explorationHistory.includes(selectedText)) {
-        explorationHistory.push(selectedText);
-      }
-
       const currentPopup = popupManager;
+      const hasHistory = explorationHistory.length > 0;
+
       popupManager.showDefinition(
         response.definition,
+        selectedText, // Current term
+        hasHistory, // Show back button if there's history
         () => {
           // Callback when popup is closed
           explorationHistory.length = 0;
         },
         (nextSelectedText: string) => {
+          // Add current exploration to history before going deeper
+          explorationHistory.push({
+            term: selectedText,
+            definition: response.definition,
+            context: selectedText,
+          });
+
           // Recursive callback for deeper exploration
           handleRecursiveSelection(nextSelectedText, currentPopup.getRect());
+        },
+        () => {
+          // Back button callback
+          if (explorationHistory.length > 0) {
+            const previousItem = explorationHistory.pop()!;
+
+            // Close current popup
+            currentPopup.close();
+
+            // Create new popup with previous definition
+            const newPopup = new PopupManager();
+            const stillHasHistory = explorationHistory.length > 0;
+            newPopup.show(currentPopup.getRect(), previousItem.definition, true, previousItem.term, stillHasHistory);
+
+            newPopup.showDefinition(
+              previousItem.definition,
+              previousItem.term,
+              stillHasHistory,
+              () => {
+                explorationHistory.length = 0;
+              },
+              (nextSelectedText: string) => {
+                explorationHistory.push({
+                  term: previousItem.term,
+                  definition: previousItem.definition,
+                  context: previousItem.context,
+                });
+                handleRecursiveSelection(nextSelectedText, newPopup.getRect());
+              },
+              () => {
+                // Recursive back button for the restored popup
+                if (explorationHistory.length > 0) {
+                  const prev = explorationHistory.pop()!;
+                  newPopup.close();
+                  const restoredPopup = new PopupManager();
+                  const hasMoreHistory = explorationHistory.length > 0;
+                  restoredPopup.show(newPopup.getRect(), prev.definition, true, prev.term, hasMoreHistory);
+                  restoredPopup.showDefinition(
+                    prev.definition,
+                    prev.term,
+                    hasMoreHistory
+                  );
+                  popupManager = restoredPopup;
+                }
+              }
+            );
+
+            popupManager = newPopup;
+          }
         }
       );
     }
@@ -95,7 +153,7 @@ async function handleTextSelection(): Promise<void> {
 
     // Create new popup manager
     popupManager = new PopupManager();
-    popupManager.show(selectionRect, 'Loading...');
+    popupManager.show(selectionRect, 'Loading...', false, selectionData.selectedText, false); // Show term immediately, no back button
 
     // Fetch definition from API
     const response = await fetchDefinition({
@@ -107,20 +165,24 @@ async function handleTextSelection(): Promise<void> {
     if (response.error) {
       popupManager.showError(response.error);
     } else {
-      // Add current term to history for nested exploration
-      if (!explorationHistory.includes(selectionData.selectedText)) {
-        explorationHistory.push(selectionData.selectedText);
-      }
-
       const currentPopup = popupManager;
       popupManager.showDefinition(
         response.definition,
+        selectionData.selectedText, // Current term
+        false, // No back button for initial selection
         () => {
           // Callback when popup is closed
           // Clear exploration history when closing
           explorationHistory.length = 0;
         },
         (selectedText: string) => {
+          // Add current exploration to history before going deeper
+          explorationHistory.push({
+            term: selectionData.selectedText,
+            definition: response.definition,
+            context: selectionData.context,
+          });
+
           // Callback when word is selected within popup for recursive exploration
           handleRecursiveSelection(selectedText, currentPopup.getRect());
         }
