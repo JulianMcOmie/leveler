@@ -6,23 +6,37 @@ import { HistoryItem } from '../shared/types';
 // Global state
 let popupManager: PopupManager | null = null;
 let isProcessing = false;
+let isNavigating = false; // Prevent overlapping navigation
 const explorationHistory: HistoryItem[] = [];
 
 /**
  * Handle back button click - navigate to previous item in history
  */
 function handleBackNavigation(): void {
+  if (isNavigating) {
+    console.log('Already navigating, ignoring...');
+    return;
+  }
+
+  isNavigating = true;
   console.log('handleBackNavigation called, history length:', explorationHistory.length);
   console.log('History contents:', explorationHistory.map(h => h.term));
 
   if (explorationHistory.length === 0) {
     console.log('No history to go back to');
+    isNavigating = false;
     return;
   }
 
   // Pop the previous item from history BEFORE closing (closing triggers onClose which clears history!)
   const previousItem = explorationHistory.pop()!;
   console.log('Popped from history:', previousItem.term, 'Remaining history:', explorationHistory.length);
+
+  // Clear any active text selection to prevent triggering new selection events
+  const selection = window.getSelection();
+  if (selection) {
+    selection.removeAllRanges();
+  }
 
   // Get current popup position before closing
   const rect = popupManager ? popupManager.getRect() : { top: 100, left: 100, width: 0, height: 0 } as DOMRect;
@@ -35,13 +49,18 @@ function handleBackNavigation(): void {
     if (container) {
       container.remove();
     }
+    // Clear the reference to prevent event handler conflicts
+    popupManager = null;
   }
 
-  // Create new popup with previous definition
+  // Create new popup with previous definition (INSTANTLY - no API call)
   const newPopup = new PopupManager();
   const stillHasHistory = explorationHistory.length > 0;
 
-  newPopup.show(rect, previousItem.definition, true, previousItem.term, stillHasHistory);
+  // Show popup with term immediately (no loading state needed - we have the definition cached)
+  newPopup.show(rect, '', true, previousItem.term, stillHasHistory);
+
+  // Immediately show the stored definition (no API call)
   newPopup.showDefinition(
     previousItem.definition,
     previousItem.term,
@@ -66,6 +85,7 @@ function handleBackNavigation(): void {
   );
 
   popupManager = newPopup;
+  isNavigating = false;
 }
 
 /**
