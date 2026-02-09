@@ -182,4 +182,6 @@ This is currently a personal project in MVP/validation phase. Feedback welcome!
 
 ## License
 
-MIT
+© 2025 Julian McOmie. All rights reserved.
+
+This software is proprietary and confidential. Unauthorized copying, distribution, or use is strictly prohibited.
