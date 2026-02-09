@@ -185,3 +185,5 @@ This is currently a personal project in MVP/validation phase. Feedback welcome!
 © 2025 Julian McOmie. All rights reserved.
 
 This software is proprietary and confidential. Unauthorized copying, distribution, or use is strictly prohibited.
+
+**Note:** This license supersedes any prior license notices that may appear in the git history. The software has never been released under an open source license.
