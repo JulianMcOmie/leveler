@@ -311,6 +311,8 @@ export class PopupManager {
     if (showBack !== undefined) {
       console.log('Setting back button display:', showBack ? 'flex' : 'none', 'showBack value:', showBack);
       this.backButton.style.display = showBack ? 'flex' : 'none';
+      // Add left padding when back button is hidden to center the title
+      this.termTitle.style.paddingLeft = showBack ? '0' : '30px';
     } else {
       console.log('showBack is undefined, not changing display');
     }
@@ -339,6 +341,8 @@ export class PopupManager {
 
     // Show/hide back button
     this.backButton.style.display = showBackButton ? 'flex' : 'none';
+    // Add left padding when back button is hidden to center the title
+    this.termTitle.style.paddingLeft = showBackButton ? '0' : '30px';
 
     // Clear previous content (except close button and header)
     while (this.popupContent.children.length > 2) {
