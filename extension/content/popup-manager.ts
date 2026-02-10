@@ -138,12 +138,12 @@ export class PopupManager {
       }
 
       .back-button {
-        background: #3b82f6;
-        border: none;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
         padding: 6px 12px;
         border-radius: 4px;
         font-size: 13px;
-        color: white;
+        color: #2563eb;
         font-weight: 500;
         cursor: pointer;
         transition: all 0.15s ease;
@@ -153,7 +153,8 @@ export class PopupManager {
       }
 
       .back-button:hover {
-        background: #2563eb;
+        background: #dbeafe;
+        border-color: #93c5fd;
       }
 
       .term-title {
