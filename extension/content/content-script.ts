@@ -18,6 +18,7 @@ document.addEventListener('mousemove', (e) => {
   lastMousePosition = { x: e.clientX, y: e.clientY };
 });
 
+
 /**
  * Handle back button click - navigate to previous item in history
  */
@@ -394,31 +395,12 @@ function init(): void {
   console.log('Is PDF:', isPDF);
 
   if (isPDF) {
-    console.log('PDF detected - context menu will auto-show when you select text');
+    console.log('📄 PDF detected!');
+    console.log('💡 To define terms: Select text → Right-click → "Define with Leveler"');
 
-    // Auto-show context menu when text is selected in PDFs
+    // Capture selection position for popup placement
     document.addEventListener('mouseup', (e) => {
-      // Capture the selection position (where user finished selecting text)
       pdfSelectionPosition = { x: e.clientX, y: e.clientY };
-      console.log('Captured PDF selection position:', pdfSelectionPosition);
-
-      // Small delay to ensure selection is complete
-      setTimeout(() => {
-        // We can't reliably check if text is selected in PDFs,
-        // but we can show the context menu and let the user decide
-        console.log('Text selection detected, showing context menu');
-
-        // Programmatically trigger context menu at mouse position
-        const contextMenuEvent = new MouseEvent('contextmenu', {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          clientX: e.clientX,
-          clientY: e.clientY
-        });
-
-        document.dispatchEvent(contextMenuEvent);
-      }, 100);
     });
   } else {
     // For regular pages, use mouseup event (fires when selection is complete)
