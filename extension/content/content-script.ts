@@ -278,6 +278,102 @@ async function handleTextSelection(): Promise<void> {
     return;
   }
 
+  const isPDF = document.contentType === 'application/pdf';
+
+  // For PDFs, use window.getSelection() directly (standard selection-handler doesn't work)
+  if (isPDF) {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+
+    // Debug: Check all properties of the selection object
+    console.log('PDF selection attempt:', {
+      hasSelection: !!selection,
+      text: selectedText,
+      length: selectedText?.length,
+      rangeCount: selection?.rangeCount,
+      isCollapsed: selection?.isCollapsed,
+      anchorNode: selection?.anchorNode,
+      focusNode: selection?.focusNode,
+      type: selection?.type
+    });
+
+    if (!selectedText || selectedText.length < 2 || isProcessing) {
+      console.log('No valid PDF selection or already processing');
+      return;
+    }
+
+    console.log('✅ Got selected text from PDF:', selectedText);
+
+    // Use top-center positioning for PDFs (can't get selection coordinates)
+    const viewportCenterX = window.innerWidth / 2;
+    const topY = 60;
+    const SELECTION_HEIGHT = 20;
+
+    const selectionRect: DOMRect = {
+      top: topY - SELECTION_HEIGHT / 2,
+      bottom: topY + SELECTION_HEIGHT / 2,
+      left: viewportCenterX,
+      right: viewportCenterX,
+      width: 0,
+      height: SELECTION_HEIGHT,
+      x: viewportCenterX,
+      y: topY - SELECTION_HEIGHT / 2,
+      toJSON: () => ({})
+    } as DOMRect;
+
+    isProcessing = true;
+
+    try {
+      // Close existing popup if any
+      if (popupManager) {
+        popupManager.close();
+      }
+
+      // Create new popup manager
+      popupManager = new PopupManager();
+      popupManager.show(selectionRect, 'Loading...', false, selectedText, false);
+
+      // Fetch definition from API
+      const usedTerms = explorationHistory.map(item => item.term);
+      const response = await fetchDefinition({
+        selectedText: selectedText,
+        context: selectedText, // Use selected text as context for PDFs
+        history: usedTerms,
+      });
+
+      if (response.error) {
+        popupManager.showError(response.error);
+      } else {
+        const currentPopup = popupManager;
+        popupManager.showDefinition(
+          response.definition,
+          selectedText,
+          false,
+          () => {
+            explorationHistory.length = 0;
+          },
+          (nextSelectedText: string) => {
+            explorationHistory.push({
+              term: selectedText,
+              definition: response.definition,
+              context: selectedText,
+            });
+            handleRecursiveSelection(nextSelectedText, currentPopup.getRect());
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error handling PDF selection:', error);
+      if (popupManager) {
+        popupManager.showError('Failed to fetch definition');
+      }
+    } finally {
+      isProcessing = false;
+    }
+    return;
+  }
+
+  // For HTML pages, use standard selection handler
   const selectionData = getSelection();
   console.log('Selection data:', selectionData);
   if (!selectionData || isProcessing) {
@@ -418,13 +514,41 @@ function init(): void {
 
   if (isPDF) {
     console.log('📄 PDF detected in frame:', window.location.href);
-    console.log('💡 To define terms: Select text → Right-click → "Define with Leveler"');
+    console.log('💡 Trying automatic selection detection in PDF...');
 
-    // Capture position when user right-clicks (opens context menu)
+    // Try approach 1: mouseup event
+    document.addEventListener('mouseup', () => {
+      console.log('🔍 PDF mouseup detected, checking selection...');
+      setTimeout(() => {
+        handleTextSelection();
+      }, 100);
+    });
+
+    // Try approach 2: selectionchange event (backup)
+    let selectionTimeout: number | null = null;
+    document.addEventListener('selectionchange', () => {
+      console.log('🔍 PDF selectionchange detected');
+
+      // Debounce to avoid multiple triggers while selecting
+      if (selectionTimeout) {
+        clearTimeout(selectionTimeout);
+      }
+
+      selectionTimeout = window.setTimeout(() => {
+        const selection = window.getSelection();
+        const text = selection?.toString().trim();
+        if (text && text.length > 2) {
+          console.log('🔍 Selection has text, calling handleTextSelection');
+          handleTextSelection();
+        }
+      }, 300);
+    });
+
+    // Keep context menu as fallback
     document.addEventListener('contextmenu', (e) => {
       pdfSelectionPosition = { x: e.clientX, y: e.clientY };
-      console.log('🎯 Right-click detected at:', pdfSelectionPosition, 'in frame:', window.location.href);
-    }, true); // Use capture phase to ensure we get it
+      console.log('🎯 Right-click detected at:', pdfSelectionPosition);
+    }, true);
   } else {
     // For regular pages, use mouseup event (fires when selection is complete)
     document.addEventListener('mouseup', () => {
