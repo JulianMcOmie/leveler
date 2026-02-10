@@ -23,7 +23,7 @@ export class PopupManager {
     // Create container element
     this.container = document.createElement('div');
     this.container.id = 'leveler-popup';
-    this.container.style.position = 'fixed';
+    this.container.style.position = 'absolute'; // Scrolls with page
     this.container.style.zIndex = '2147483647'; // Maximum z-index
     this.container.style.pointerEvents = 'none'; // Allow clicks through container
 
@@ -269,27 +269,27 @@ export class PopupManager {
     if (isRecursive) {
       // For recursive popups, position at the same location as the previous popup
       // The rect here is from getBoundingClientRect() which gives viewport coordinates
-      // Since container uses position: fixed, we DON'T add scroll offset
-      top = rect.top;
-      left = rect.left + (rect.width / 2);
+      // Since container uses position: absolute, we ADD scroll offset
+      top = rect.top + window.scrollY;
+      left = rect.left + window.scrollX + (rect.width / 2);
       console.log('Recursive positioning:', { top, left });
     } else {
       // For initial selection, position below the selected text
       // getBoundingClientRect() gives viewport coordinates
-      // Since we use position: fixed, we DON'T need to add scrollY
-      top = rect.bottom + POPUP_MARGIN;
+      // Since we use position: absolute, we ADD scrollY for document coordinates
+      top = rect.bottom + window.scrollY + POPUP_MARGIN;
       console.log('Initial positioning (before viewport check):', { top });
 
       // If not enough space below, position above
       if (rect.bottom + 200 > viewportHeight) {
-        top = rect.top - POPUP_MARGIN;
+        top = rect.top + window.scrollY - POPUP_MARGIN;
         this.popupContent.style.transform = 'translateY(-100%)';
       } else {
         this.popupContent.style.transform = 'none';
       }
 
       // Center horizontally relative to selection
-      left = rect.left + (rect.width / 2);
+      left = rect.left + window.scrollX + (rect.width / 2);
     }
 
     this.container.style.top = `${top}px`;
