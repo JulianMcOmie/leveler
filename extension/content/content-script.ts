@@ -168,14 +168,19 @@ async function handleRecursiveSelection(selectedText: string, popupRect: DOMRect
  * Handle text selection on the page
  */
 async function handleTextSelection(): Promise<void> {
+  console.log('handleTextSelection called');
+
   // Avoid handling selections within our own popup
   const target = document.activeElement;
   if (target && target.closest('#leveler-popup')) {
+    console.log('Ignoring - selection is in our popup');
     return;
   }
 
   const selectionData = getSelection();
+  console.log('Selection data:', selectionData);
   if (!selectionData || isProcessing) {
+    console.log('No selection data or already processing');
     return;
   }
 
@@ -280,14 +285,66 @@ function handleDocumentClick(event: MouseEvent): void {
  */
 function init(): void {
   console.log('Leveler extension loaded');
+  console.log('Document type:', document.contentType);
+  console.log('URL:', window.location.href);
+  console.log('Is PDF:', document.contentType === 'application/pdf' || window.location.href.endsWith('.pdf'));
 
-  // Listen for text selection (mouseup event)
-  document.addEventListener('mouseup', (event) => {
-    // Small delay to ensure selection is complete
-    setTimeout(() => {
-      handleTextSelection();
-    }, 100);
-  });
+  // Debug: Check DOM structure for PDFs
+  if (document.contentType === 'application/pdf') {
+    console.log('PDF detected - inspecting DOM structure...');
+    console.log('Body children:', document.body?.children);
+    console.log('Embeds:', document.embeds);
+    console.log('All elements:', document.querySelectorAll('*'));
+
+    // Try to find the PDF viewer element
+    const embed = document.querySelector('embed');
+    console.log('Embed element:', embed);
+
+    // Check if there's a viewer in shadow DOM or iframe
+    const iframe = document.querySelector('iframe');
+    console.log('Iframe element:', iframe);
+  }
+
+  // For PDFs, use polling since events don't work reliably
+  if (document.contentType === 'application/pdf') {
+    console.log('Using polling for PDF selection detection');
+    let lastSelectionText = '';
+    let pollCount = 0;
+
+    setInterval(() => {
+      pollCount++;
+      const selection = window.getSelection();
+      const currentText = selection?.toString().trim() || '';
+
+      // Log every 25 polls (every 5 seconds) to show it's working
+      if (pollCount % 25 === 0) {
+        console.log('Polling active... selection:', selection, 'text:', currentText);
+      }
+
+      // If selection changed and has content
+      if (currentText && currentText !== lastSelectionText && !selection!.isCollapsed) {
+        console.log('PDF selection detected via polling:', currentText);
+        lastSelectionText = currentText;
+        // Wait a bit to ensure selection is stable
+        setTimeout(() => {
+          if (window.getSelection()?.toString().trim() === currentText) {
+            handleTextSelection();
+          }
+        }, 300);
+      } else if (!currentText) {
+        lastSelectionText = '';
+      }
+    }, 200);
+  } else {
+    // For regular pages, use mouseup event (fires when selection is complete)
+    document.addEventListener('mouseup', () => {
+      console.log('Mouseup event detected');
+      // Small delay to ensure selection is complete
+      setTimeout(() => {
+        handleTextSelection();
+      }, 100);
+    });
+  }
 
   // Listen for clicks to close popup
   document.addEventListener('click', handleDocumentClick);
