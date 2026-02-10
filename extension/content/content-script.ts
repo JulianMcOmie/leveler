@@ -414,47 +414,13 @@ function init(): void {
     console.log('📄 PDF detected in frame:', window.location.href);
     console.log('🔄 Starting PDF analysis for context-aware definitions...');
 
-    // Show loading indicator
-    const statusDiv = document.createElement('div');
-    statusDiv.id = 'leveler-pdf-status';
-    statusDiv.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #2563eb;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 8px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      z-index: 2147483647;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    `;
-    statusDiv.textContent = '📄 Analyzing document...';
-    document.body.appendChild(statusDiv);
-
-    // Parse PDF
+    // Parse PDF silently in background
     const pdfUrl = window.location.href;
     parsePDF(pdfUrl)
       .then((cache) => {
-        statusDiv.textContent = `✅ Analyzed ${cache.pageCount} pages! Context-aware definitions ready.`;
-        statusDiv.style.background = '#10a37f';
-        setTimeout(() => {
-          statusDiv.style.opacity = '0';
-          statusDiv.style.transition = 'opacity 0.3s';
-          setTimeout(() => statusDiv.remove(), 300);
-        }, 4000);
         console.log(`✅ PDF ready: ${cache.pageCount} pages, ${cache.text.length} characters`);
       })
       .catch((error) => {
-        statusDiv.textContent = '⚠️ Could not analyze document. Enable "file access" in extension settings.';
-        statusDiv.style.background = '#ef4444';
-        setTimeout(() => {
-          statusDiv.style.opacity = '0';
-          statusDiv.style.transition = 'opacity 0.3s';
-          setTimeout(() => statusDiv.remove(), 300);
-        }, 8000);
         console.error('❌ PDF parse error:', error);
       });
   } else {
