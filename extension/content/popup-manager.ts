@@ -1,4 +1,4 @@
-import { parseTokens } from '../shared/utils';
+import { parseTokens, cleanTitleText } from '../shared/utils';
 import { Token } from '../shared/types';
 
 export class PopupManager {
@@ -162,6 +162,10 @@ export class PopupManager {
         color: #202123;
         font-size: 14px;
         flex: 1;
+        padding-right: 30px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .definition-text {
@@ -297,9 +301,9 @@ export class PopupManager {
     this.container.style.left = `${left}px`;
     this.container.style.transform = 'translateX(-50%)';
 
-    // Set term title if provided
+    // Set term title if provided (clean punctuation)
     if (term) {
-      this.termTitle.textContent = term;
+      this.termTitle.textContent = cleanTitleText(term);
     }
 
     // Show/hide back button
@@ -329,8 +333,8 @@ export class PopupManager {
     this.onWordSelectionCallback = onWordSelection;
     this.onBackCallback = onBack;
 
-    // Set term title
-    this.termTitle.textContent = currentTerm;
+    // Set term title (clean punctuation)
+    this.termTitle.textContent = cleanTitleText(currentTerm);
 
     // Show/hide back button
     this.backButton.style.display = showBackButton ? 'flex' : 'none';

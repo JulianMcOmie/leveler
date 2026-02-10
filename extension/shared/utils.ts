@@ -75,3 +75,10 @@ export function extractContext(fullText: string, selectedText: string): string {
 export function cleanSelectedText(text: string): string {
   return text.trim().replace(/[.,;:!?]+$/, '');
 }
+
+/**
+ * Clean text for display as title (remove all punctuation)
+ */
+export function cleanTitleText(text: string): string {
+  return text.trim().replace(/[.,;:!?'"]+/g, '');
+}
