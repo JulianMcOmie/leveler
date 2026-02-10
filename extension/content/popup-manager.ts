@@ -410,8 +410,17 @@ export class PopupManager {
   }
 
   private handleWordMouseUp(): void {
+    console.log('handleWordMouseUp:', {
+      isSelecting: this.isSelecting,
+      selectedCount: this.selectedIndices.size,
+      selectedIndices: Array.from(this.selectedIndices)
+    });
+
     if (!this.isSelecting || this.selectedIndices.size === 0) {
+      console.log('No selection or empty selection, ignoring mouseup');
       this.isSelecting = false;
+      this.selectedIndices.clear();
+      this.updateSelectionUI();
       return;
     }
 
@@ -422,6 +431,8 @@ export class PopupManager {
       .sort((a, b) => a - b)
       .map(i => this.tokens[i].word)
       .join(' ');
+
+    console.log('Triggering word selection callback with:', selectedWords);
 
     // Clear selection UI
     this.selectedIndices.clear();
