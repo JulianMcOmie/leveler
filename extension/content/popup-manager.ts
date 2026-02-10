@@ -256,28 +256,40 @@ export class PopupManager {
     const POPUP_MARGIN = 10;
     const viewportHeight = window.innerHeight;
 
+    console.log('PopupManager.show() called:', {
+      isRecursive,
+      rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+      scrollY: window.scrollY,
+      scrollX: window.scrollX
+    });
+
     let top: number;
     let left: number;
 
     if (isRecursive) {
       // For recursive popups, position at the same location as the previous popup
       // The rect here is from getBoundingClientRect() which gives viewport coordinates
-      top = rect.top + window.scrollY;
-      left = rect.left + window.scrollX + (rect.width / 2);
+      // Since container uses position: fixed, we DON'T add scroll offset
+      top = rect.top;
+      left = rect.left + (rect.width / 2);
+      console.log('Recursive positioning:', { top, left });
     } else {
       // For initial selection, position below the selected text
-      top = window.scrollY + rect.bottom + POPUP_MARGIN;
+      // getBoundingClientRect() gives viewport coordinates
+      // Since we use position: fixed, we DON'T need to add scrollY
+      top = rect.bottom + POPUP_MARGIN;
+      console.log('Initial positioning (before viewport check):', { top });
 
       // If not enough space below, position above
       if (rect.bottom + 200 > viewportHeight) {
-        top = window.scrollY + rect.top - POPUP_MARGIN;
+        top = rect.top - POPUP_MARGIN;
         this.popupContent.style.transform = 'translateY(-100%)';
       } else {
         this.popupContent.style.transform = 'none';
       }
 
       // Center horizontally relative to selection
-      left = window.scrollX + rect.left + (rect.width / 2);
+      left = rect.left + (rect.width / 2);
     }
 
     this.container.style.top = `${top}px`;

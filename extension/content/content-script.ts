@@ -242,6 +242,19 @@ async function handleTextSelection(): Promise<void> {
 }
 
 /**
+ * Close the current popup and reset state
+ */
+function closePopup(): void {
+  if (popupManager) {
+    popupManager.close();
+    popupManager = null;
+    explorationHistory.length = 0;
+    isNavigating = false;
+    isProcessing = false;
+  }
+}
+
+/**
  * Handle clicks outside the popup to close it
  */
 function handleDocumentClick(event: MouseEvent): void {
@@ -250,10 +263,15 @@ function handleDocumentClick(event: MouseEvent): void {
   }
 
   const target = event.target as HTMLElement;
+  // Check if click is on close button
+  if (target.classList.contains('close-button') || target.closest('.close-button')) {
+    closePopup();
+    return;
+  }
+
+  // Check if click is outside popup
   if (!target.closest('#leveler-popup')) {
-    popupManager.close();
-    popupManager = null;
-    explorationHistory.length = 0; // Reset history when closing
+    closePopup();
   }
 }
 
