@@ -11,6 +11,7 @@ const explorationHistory: HistoryItem[] = [];
 
 // Track mouse position for popup placement
 let lastMousePosition = { x: 0, y: 0 };
+let pdfSelectionPosition: { x: number; y: number } | null = null;
 
 // Track mouse position globally
 document.addEventListener('mousemove', (e) => {
@@ -111,23 +112,31 @@ async function handleContextMenuSelection(selectedText: string, context: string)
       popupManager.close();
     }
 
-    // Use tracked mouse position for popup placement
-    // This makes popup appear near where user interacted, similar to Mac's lookup
+    // Use the position where text was selected (not where menu was clicked)
+    const selectionPos = pdfSelectionPosition || lastMousePosition;
+    console.log('Using selection position for popup:', selectionPos);
+
+    // Create a rect that represents the selection area
+    // Position popup below the selection point
+    const SELECTION_HEIGHT = 20; // Approximate height of selected text
     const viewportRect: DOMRect = {
-      top: lastMousePosition.y,
-      bottom: lastMousePosition.y,
-      left: lastMousePosition.x,
-      right: lastMousePosition.x,
+      top: selectionPos.y - SELECTION_HEIGHT / 2,
+      bottom: selectionPos.y + SELECTION_HEIGHT / 2,
+      left: selectionPos.x,
+      right: selectionPos.x,
       width: 0,
-      height: 0,
-      x: lastMousePosition.x,
-      y: lastMousePosition.y,
+      height: SELECTION_HEIGHT,
+      x: selectionPos.x,
+      y: selectionPos.y - SELECTION_HEIGHT / 2,
       toJSON: () => ({})
     } as DOMRect;
 
     // Create new popup manager
     popupManager = new PopupManager();
     popupManager.show(viewportRect, 'Loading...', false, selectedText, false);
+
+    // Clear the stored position after using it
+    pdfSelectionPosition = null;
 
     // Fetch definition from API
     const usedTerms = explorationHistory.map(item => item.term);
@@ -389,6 +398,10 @@ function init(): void {
 
     // Auto-show context menu when text is selected in PDFs
     document.addEventListener('mouseup', (e) => {
+      // Capture the selection position (where user finished selecting text)
+      pdfSelectionPosition = { x: e.clientX, y: e.clientY };
+      console.log('Captured PDF selection position:', pdfSelectionPosition);
+
       // Small delay to ensure selection is complete
       setTimeout(() => {
         // We can't reliably check if text is selected in PDFs,
