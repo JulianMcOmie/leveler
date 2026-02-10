@@ -1,15 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Leveler",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Understand technical terms instantly with context-aware definitions",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

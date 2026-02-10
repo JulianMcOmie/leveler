@@ -9,6 +9,14 @@ let isProcessing = false;
 let isNavigating = false; // Prevent overlapping navigation
 const explorationHistory: HistoryItem[] = [];
 
+// Track mouse position for popup placement
+let lastMousePosition = { x: 0, y: 0 };
+
+// Track mouse position globally
+document.addEventListener('mousemove', (e) => {
+  lastMousePosition = { x: e.clientX, y: e.clientY };
+});
+
 /**
  * Handle back button click - navigate to previous item in history
  */
@@ -86,6 +94,80 @@ function handleBackNavigation(): void {
 
   popupManager = newPopup;
   isNavigating = false;
+}
+
+/**
+ * Handle text selection from context menu (right-click)
+ */
+async function handleContextMenuSelection(selectedText: string, context: string): Promise<void> {
+  console.log('handleContextMenuSelection called:', selectedText);
+
+  if (isProcessing) return;
+  isProcessing = true;
+
+  try {
+    // Close existing popup if any
+    if (popupManager) {
+      popupManager.close();
+    }
+
+    // Use tracked mouse position for popup placement
+    // This makes popup appear near where user interacted, similar to Mac's lookup
+    const viewportRect: DOMRect = {
+      top: lastMousePosition.y,
+      bottom: lastMousePosition.y,
+      left: lastMousePosition.x,
+      right: lastMousePosition.x,
+      width: 0,
+      height: 0,
+      x: lastMousePosition.x,
+      y: lastMousePosition.y,
+      toJSON: () => ({})
+    } as DOMRect;
+
+    // Create new popup manager
+    popupManager = new PopupManager();
+    popupManager.show(viewportRect, 'Loading...', false, selectedText, false);
+
+    // Fetch definition from API
+    const usedTerms = explorationHistory.map(item => item.term);
+    const response = await fetchDefinition({
+      selectedText: selectedText,
+      context: context,
+      history: usedTerms,
+    });
+
+    if (response.error) {
+      popupManager.showError(response.error);
+    } else {
+      const currentPopup = popupManager;
+      popupManager.showDefinition(
+        response.definition,
+        selectedText,
+        false, // No back button for initial selection
+        () => {
+          // On close
+          explorationHistory.length = 0;
+        },
+        (nextSelectedText: string) => {
+          // On word selection (recursive exploration)
+          explorationHistory.push({
+            term: selectedText,
+            definition: response.definition,
+            context: context,
+          });
+          handleRecursiveSelection(nextSelectedText, currentPopup.getRect());
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Error handling context menu selection:', error);
+    if (popupManager) {
+      popupManager.showError('Failed to fetch definition');
+    }
+  } finally {
+    isProcessing = false;
+  }
 }
 
 /**
@@ -247,6 +329,17 @@ async function handleTextSelection(): Promise<void> {
 }
 
 /**
+ * Handle messages from service worker (context menu)
+ */
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'showDefinition') {
+    handleContextMenuSelection(message.selectedText, message.context);
+    sendResponse({ success: true });
+  }
+  return true; // Keep channel open for async response
+});
+
+/**
  * Close the current popup and reset state
  */
 function closePopup(): void {
@@ -287,59 +380,37 @@ function init(): void {
   console.log('Leveler extension loaded');
   console.log('Document type:', document.contentType);
   console.log('URL:', window.location.href);
-  console.log('Is PDF:', document.contentType === 'application/pdf' || window.location.href.endsWith('.pdf'));
 
-  // Debug: Check DOM structure for PDFs
-  if (document.contentType === 'application/pdf') {
-    console.log('PDF detected - inspecting DOM structure...');
-    console.log('Body children:', document.body?.children);
-    console.log('Embeds:', document.embeds);
-    console.log('All elements:', document.querySelectorAll('*'));
+  const isPDF = document.contentType === 'application/pdf';
+  console.log('Is PDF:', isPDF);
 
-    // Try to find the PDF viewer element
-    const embed = document.querySelector('embed');
-    console.log('Embed element:', embed);
+  if (isPDF) {
+    console.log('PDF detected - context menu will auto-show when you select text');
 
-    // Check if there's a viewer in shadow DOM or iframe
-    const iframe = document.querySelector('iframe');
-    console.log('Iframe element:', iframe);
-  }
+    // Auto-show context menu when text is selected in PDFs
+    document.addEventListener('mouseup', (e) => {
+      // Small delay to ensure selection is complete
+      setTimeout(() => {
+        // We can't reliably check if text is selected in PDFs,
+        // but we can show the context menu and let the user decide
+        console.log('Text selection detected, showing context menu');
 
-  // For PDFs, use polling since events don't work reliably
-  if (document.contentType === 'application/pdf') {
-    console.log('Using polling for PDF selection detection');
-    let lastSelectionText = '';
-    let pollCount = 0;
+        // Programmatically trigger context menu at mouse position
+        const contextMenuEvent = new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: e.clientX,
+          clientY: e.clientY
+        });
 
-    setInterval(() => {
-      pollCount++;
-      const selection = window.getSelection();
-      const currentText = selection?.toString().trim() || '';
-
-      // Log every 25 polls (every 5 seconds) to show it's working
-      if (pollCount % 25 === 0) {
-        console.log('Polling active... selection:', selection, 'text:', currentText);
-      }
-
-      // If selection changed and has content
-      if (currentText && currentText !== lastSelectionText && !selection!.isCollapsed) {
-        console.log('PDF selection detected via polling:', currentText);
-        lastSelectionText = currentText;
-        // Wait a bit to ensure selection is stable
-        setTimeout(() => {
-          if (window.getSelection()?.toString().trim() === currentText) {
-            handleTextSelection();
-          }
-        }, 300);
-      } else if (!currentText) {
-        lastSelectionText = '';
-      }
-    }, 200);
+        document.dispatchEvent(contextMenuEvent);
+      }, 100);
+    });
   } else {
     // For regular pages, use mouseup event (fires when selection is complete)
     document.addEventListener('mouseup', () => {
       console.log('Mouseup event detected');
-      // Small delay to ensure selection is complete
       setTimeout(() => {
         handleTextSelection();
       }, 100);
