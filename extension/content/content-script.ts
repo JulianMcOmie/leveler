@@ -398,6 +398,56 @@ function init(): void {
   if (isPDF) {
     console.log('📄 PDF detected in frame:', window.location.href);
     console.log('💡 To use: Select text → Right-click → "Define with Leveler"');
+
+    // Test: Deep dive into PDF DOM structure
+    setTimeout(() => {
+      const bodyText = document.body?.textContent || '';
+      const allText = document.documentElement?.textContent || '';
+
+      // Check for embedded elements
+      const embeds = document.querySelectorAll('embed');
+      const objects = document.querySelectorAll('object');
+      const iframes = document.querySelectorAll('iframe');
+
+      // Check for shadow roots
+      const shadowHosts = document.querySelectorAll('*');
+      let shadowText = '';
+      shadowHosts.forEach(el => {
+        if (el.shadowRoot) {
+          shadowText += el.shadowRoot.textContent || '';
+        }
+      });
+
+      // Check all divs with text content
+      const allDivs = document.querySelectorAll('div');
+      let maxDivText = '';
+      allDivs.forEach(div => {
+        const text = div.textContent || '';
+        if (text.length > maxDivText.length) {
+          maxDivText = text;
+        }
+      });
+
+      console.log('🔍 Deep PDF inspection:', {
+        bodyLength: bodyText.length,
+        documentLength: allText.length,
+        embedCount: embeds.length,
+        objectCount: objects.length,
+        iframeCount: iframes.length,
+        shadowTextLength: shadowText.length,
+        maxDivTextLength: maxDivText.length,
+        totalElements: document.querySelectorAll('*').length,
+        embedDetails: Array.from(embeds).map(e => ({
+          type: e.type,
+          src: e.src,
+          hasContent: !!e.textContent
+        }))
+      });
+
+      if (maxDivText.length > 100) {
+        console.log('📄 Found div with content:', maxDivText.substring(0, 500));
+      }
+    }, 2000);
   } else {
     // For regular pages, use mouseup event (fires when selection is complete)
     document.addEventListener('mouseup', () => {
