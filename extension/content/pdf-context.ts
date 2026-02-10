@@ -54,21 +54,43 @@ export function getContextFromPDF(selectedText: string, contextSize: number = 20
   }
 
   const text = currentCache.text;
-  const index = text.indexOf(selectedText);
 
-  if (index === -1) {
-    console.warn('⚠️ Text not found in PDF, using first part as context');
-    return text.substring(0, contextSize * 2);
+  // Find first exact word-boundary match (so "state" doesn't match "states")
+  const wordBoundaryPattern = new RegExp(`\\b${escapeRegex(selectedText)}\\b`, 'i');
+  const match = text.match(wordBoundaryPattern);
+
+  if (!match || match.index === undefined) {
+    console.warn('⚠️ Exact word not found, trying substring match...');
+    const index = text.indexOf(selectedText);
+    if (index === -1) {
+      console.warn('⚠️ Text not found in PDF at all');
+      return selectedText;
+    }
+    return extractContext(text, index, selectedText, contextSize);
   }
 
-  // Extract context around selection
+  console.log(`✅ Found "${selectedText}" in document`);
+  return extractContext(text, match.index, selectedText, contextSize);
+}
+
+/**
+ * Extract broad context around the term (for technical document understanding)
+ */
+function extractContext(text: string, index: number, selectedText: string, contextSize: number): string {
   const start = Math.max(0, index - contextSize);
   const end = Math.min(text.length, index + selectedText.length + contextSize);
   const context = text.substring(start, end);
 
-  console.log(`✅ Extracted ${context.length} chars of context`);
+  console.log(`📝 Extracted ${context.length} chars of context around "${selectedText}"`);
 
   return context;
+}
+
+/**
+ * Escape special regex characters
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

@@ -14,18 +14,26 @@ export async function fetchDefinition(
     const depth = request.history && request.history.length > 0 ? request.history.length : 0;
     const originalTopic = request.history && request.history.length > 0 ? request.history[0] : undefined;
 
+    const requestBody = {
+      message: request.selectedText,
+      immediateContext: request.context,
+      depth: depth,
+      originalTopic: originalTopic,
+      usedTerms: request.history || [],
+    };
+
+    console.log('🌐 API REQUEST:', {
+      term: request.selectedText,
+      contextLength: request.context.length,
+      contextPreview: request.context.substring(0, 200) + '...'
+    });
+
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        message: request.selectedText,
-        immediateContext: request.context,
-        depth: depth,
-        originalTopic: originalTopic,
-        usedTerms: request.history || [],
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {

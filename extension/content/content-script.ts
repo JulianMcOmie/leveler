@@ -354,6 +354,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       hasPDFContext: isPDFCached(),
       contextLength: context.length
     });
+    console.log('📄 FULL CONTEXT BEING SENT TO API:');
+    console.log('='.repeat(80));
+    console.log(context);
+    console.log('='.repeat(80));
 
     handleContextMenuSelection(message.selectedText, context);
     sendResponse({ success: true });
