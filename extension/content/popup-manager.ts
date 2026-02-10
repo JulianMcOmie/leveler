@@ -166,6 +166,7 @@ export class PopupManager {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        text-align: center;
       }
 
       .definition-text {
