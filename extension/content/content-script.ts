@@ -2,6 +2,7 @@ import { getSelection, getSelectionRect } from './selection-handler';
 import { fetchDefinition } from '../shared/api-client';
 import { PopupManager } from './popup-manager';
 import { HistoryItem } from '../shared/types';
+import { parsePDF, getContextFromPDF, isPDFCached } from './pdf-context';
 
 // Global state
 let popupManager: PopupManager | null = null;
@@ -344,7 +345,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
 
-    handleContextMenuSelection(message.selectedText, message.context);
+    // Use PDF context if available, otherwise use selected text
+    const context = isPDFCached()
+      ? getContextFromPDF(message.selectedText, 2000)
+      : message.selectedText;
+
+    console.log('📝 Context for definition:', {
+      hasPDFContext: isPDFCached(),
+      contextLength: context.length
+    });
+
+    handleContextMenuSelection(message.selectedText, context);
     sendResponse({ success: true });
   }
   return true; // Keep channel open for async response
@@ -397,57 +408,51 @@ function init(): void {
 
   if (isPDF) {
     console.log('📄 PDF detected in frame:', window.location.href);
-    console.log('💡 To use: Select text → Right-click → "Define with Leveler"');
+    console.log('🔄 Starting PDF analysis for context-aware definitions...');
 
-    // Test: Deep dive into PDF DOM structure
-    setTimeout(() => {
-      const bodyText = document.body?.textContent || '';
-      const allText = document.documentElement?.textContent || '';
+    // Show loading indicator
+    const statusDiv = document.createElement('div');
+    statusDiv.id = 'leveler-pdf-status';
+    statusDiv.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #2563eb;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 2147483647;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    `;
+    statusDiv.textContent = '📄 Analyzing document...';
+    document.body.appendChild(statusDiv);
 
-      // Check for embedded elements
-      const embeds = document.querySelectorAll('embed');
-      const objects = document.querySelectorAll('object');
-      const iframes = document.querySelectorAll('iframe');
-
-      // Check for shadow roots
-      const shadowHosts = document.querySelectorAll('*');
-      let shadowText = '';
-      shadowHosts.forEach(el => {
-        if (el.shadowRoot) {
-          shadowText += el.shadowRoot.textContent || '';
-        }
+    // Parse PDF
+    const pdfUrl = window.location.href;
+    parsePDF(pdfUrl)
+      .then((cache) => {
+        statusDiv.textContent = `✅ Analyzed ${cache.pageCount} pages! Context-aware definitions ready.`;
+        statusDiv.style.background = '#10a37f';
+        setTimeout(() => {
+          statusDiv.style.opacity = '0';
+          statusDiv.style.transition = 'opacity 0.3s';
+          setTimeout(() => statusDiv.remove(), 300);
+        }, 4000);
+        console.log(`✅ PDF ready: ${cache.pageCount} pages, ${cache.text.length} characters`);
+      })
+      .catch((error) => {
+        statusDiv.textContent = '⚠️ Could not analyze document. Enable "file access" in extension settings.';
+        statusDiv.style.background = '#ef4444';
+        setTimeout(() => {
+          statusDiv.style.opacity = '0';
+          statusDiv.style.transition = 'opacity 0.3s';
+          setTimeout(() => statusDiv.remove(), 300);
+        }, 8000);
+        console.error('❌ PDF parse error:', error);
       });
-
-      // Check all divs with text content
-      const allDivs = document.querySelectorAll('div');
-      let maxDivText = '';
-      allDivs.forEach(div => {
-        const text = div.textContent || '';
-        if (text.length > maxDivText.length) {
-          maxDivText = text;
-        }
-      });
-
-      console.log('🔍 Deep PDF inspection:', {
-        bodyLength: bodyText.length,
-        documentLength: allText.length,
-        embedCount: embeds.length,
-        objectCount: objects.length,
-        iframeCount: iframes.length,
-        shadowTextLength: shadowText.length,
-        maxDivTextLength: maxDivText.length,
-        totalElements: document.querySelectorAll('*').length,
-        embedDetails: Array.from(embeds).map(e => ({
-          type: e.type,
-          src: e.src,
-          hasContent: !!e.textContent
-        }))
-      });
-
-      if (maxDivText.length > 100) {
-        console.log('📄 Found div with content:', maxDivText.substring(0, 500));
-      }
-    }, 2000);
   } else {
     // For regular pages, use mouseup event (fires when selection is complete)
     document.addEventListener('mouseup', () => {
