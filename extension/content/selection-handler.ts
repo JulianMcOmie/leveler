@@ -46,15 +46,41 @@ export function getSelection(): SelectionData | null {
     const startContainer = range.startContainer;
     const endContainer = range.endContainer;
 
-    // Only expand if selection is within a single text node
-    if (startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE) {
-      const textContent = startContainer.textContent || '';
-      let startOffset = range.startOffset;
-      let endOffset = range.endOffset;
+    console.log('Selection info:', {
+      originalText: selectedText,
+      sameContainer: startContainer === endContainer,
+      nodeType: startContainer.nodeType,
+      isTextNode: startContainer.nodeType === Node.TEXT_NODE
+    });
 
-      // Expand to word boundaries
-      const expanded = expandToWordBoundaries(textContent, startOffset, endOffset);
-      selectedText = textContent.substring(expanded.start, expanded.end);
+    if (startContainer.nodeType === Node.TEXT_NODE && endContainer.nodeType === Node.TEXT_NODE) {
+      if (startContainer === endContainer) {
+        // Single text node - simple case
+        const textContent = startContainer.textContent || '';
+        const expanded = expandToWordBoundaries(textContent, range.startOffset, range.endOffset);
+        selectedText = textContent.substring(expanded.start, expanded.end);
+        console.log('Single node expansion:', selectedText);
+      } else {
+        // Multiple text nodes - expand start and end separately
+        const startText = startContainer.textContent || '';
+        const endText = endContainer.textContent || '';
+
+        // Expand start to beginning of first word
+        const expandedStart = expandToWordBoundaries(startText, range.startOffset, startText.length);
+        const startPart = startText.substring(expandedStart.start);
+
+        // Expand end to end of last word
+        const expandedEnd = expandToWordBoundaries(endText, 0, range.endOffset);
+        const endPart = endText.substring(0, expandedEnd.end);
+
+        // Get the middle text (everything between start and end nodes)
+        const rangeClone = range.cloneRange();
+        rangeClone.setStart(startContainer, expandedStart.start);
+        rangeClone.setEnd(endContainer, expandedEnd.end);
+        selectedText = rangeClone.toString();
+
+        console.log('Multi-node expansion:', { startPart, endPart, full: selectedText });
+      }
     }
   } catch (e) {
     // If expansion fails, use original selection
