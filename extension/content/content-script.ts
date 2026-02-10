@@ -103,6 +103,10 @@ function handleBackNavigation(): void {
  */
 async function handleContextMenuSelection(selectedText: string, context: string): Promise<void> {
   console.log('handleContextMenuSelection called:', selectedText);
+  console.log('pdfSelectionPosition:', pdfSelectionPosition);
+  console.log('lastMousePosition:', lastMousePosition);
+  console.log('window.scrollY:', window.scrollY, 'window.scrollX:', window.scrollX);
+  console.log('window.innerHeight:', window.innerHeight, 'window.innerWidth:', window.innerWidth);
 
   if (isProcessing) return;
   isProcessing = true;
@@ -113,22 +117,27 @@ async function handleContextMenuSelection(selectedText: string, context: string)
       popupManager.close();
     }
 
-    // Use the position where text was selected (not where menu was clicked)
-    const selectionPos = pdfSelectionPosition || lastMousePosition;
-    console.log('Using selection position for popup:', selectionPos);
+    // For PDFs, use a fixed position since we can't reliably capture selection position
+    // Chrome's PDF viewer is sandboxed and events don't propagate correctly
+    // Position at top-center of viewport for consistent, visible placement
+    const viewportCenterX = window.innerWidth / 2;
+    const topY = 60; // 60px from top
 
-    // Create a rect that represents the selection area
-    // Position popup below the selection point
-    const SELECTION_HEIGHT = 20; // Approximate height of selected text
+    console.log('Using fixed top-center position for PDF popup');
+    console.log('Viewport size:', { width: window.innerWidth, height: window.innerHeight });
+    console.log('Popup position:', { x: viewportCenterX, y: topY });
+
+    // Create a rect at top-center of viewport
+    const SELECTION_HEIGHT = 20;
     const viewportRect: DOMRect = {
-      top: selectionPos.y - SELECTION_HEIGHT / 2,
-      bottom: selectionPos.y + SELECTION_HEIGHT / 2,
-      left: selectionPos.x,
-      right: selectionPos.x,
+      top: topY - SELECTION_HEIGHT / 2,
+      bottom: topY + SELECTION_HEIGHT / 2,
+      left: viewportCenterX,
+      right: viewportCenterX,
       width: 0,
       height: SELECTION_HEIGHT,
-      x: selectionPos.x,
-      y: selectionPos.y - SELECTION_HEIGHT / 2,
+      x: viewportCenterX,
+      y: topY - SELECTION_HEIGHT / 2,
       toJSON: () => ({})
     } as DOMRect;
 
@@ -136,8 +145,8 @@ async function handleContextMenuSelection(selectedText: string, context: string)
     popupManager = new PopupManager();
     popupManager.show(viewportRect, 'Loading...', false, selectedText, false);
 
-    // Clear the stored position after using it
-    pdfSelectionPosition = null;
+    // Note: Don't clear pdfSelectionPosition here - we might need it again
+    // It will be overwritten on the next selection anyway
 
     // Fetch definition from API
     const usedTerms = explorationHistory.map(item => item.term);
@@ -342,7 +351,20 @@ async function handleTextSelection(): Promise<void> {
  * Handle messages from service worker (context menu)
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('📨 Message received in frame:', {
+    url: window.location.href,
+    isPDF: document.contentType === 'application/pdf',
+    action: message.action
+  });
+
   if (message.action === 'showDefinition') {
+    // Only respond if we're in the PDF frame (not about:blank)
+    const isPDF = document.contentType === 'application/pdf';
+    if (!isPDF && window.location.href === 'about:blank') {
+      console.log('⏭️  Ignoring message in about:blank frame');
+      return true;
+    }
+
     handleContextMenuSelection(message.selectedText, message.context);
     sendResponse({ success: true });
   }
@@ -395,13 +417,14 @@ function init(): void {
   console.log('Is PDF:', isPDF);
 
   if (isPDF) {
-    console.log('📄 PDF detected!');
+    console.log('📄 PDF detected in frame:', window.location.href);
     console.log('💡 To define terms: Select text → Right-click → "Define with Leveler"');
 
-    // Capture selection position for popup placement
-    document.addEventListener('mouseup', (e) => {
+    // Capture position when user right-clicks (opens context menu)
+    document.addEventListener('contextmenu', (e) => {
       pdfSelectionPosition = { x: e.clientX, y: e.clientY };
-    });
+      console.log('🎯 Right-click detected at:', pdfSelectionPosition, 'in frame:', window.location.href);
+    }, true); // Use capture phase to ensure we get it
   } else {
     // For regular pages, use mouseup event (fires when selection is complete)
     document.addEventListener('mouseup', () => {
